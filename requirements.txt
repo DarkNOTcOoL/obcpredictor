@@ -1,2 +1,2 @@
 streamlit
-streamlit-analytics
+streamlit-analytics2

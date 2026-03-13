@@ -1,6 +1,6 @@
 import streamlit as st
 import math
-import streamlit_analytics
+import streamlit_analytics2 as streamlit_analytics
 
 # ==========================================
 # 1. CORE MATH FUNCTIONS & UNIT TESTS
@@ -225,3 +225,4 @@ with streamlit_analytics.track():
         st.info("No NIT CSE predicted for this rank based on the dataset.")
     else:
         st.table(matched_colleges)
+

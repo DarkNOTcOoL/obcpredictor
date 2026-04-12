@@ -31,6 +31,30 @@ def obc_to_percentile(obc: int, total_candidates: int, r_min: float, r_med: floa
     
     return p_cons, p_med, p_opt
 
+def get_auto_ratio(p: float) -> float:
+    """Interpolates the CRL/OBC ratio based on the percentile."""
+    mapping = [
+        (0.0, 2.98), (5.0, 2.80), (10.0, 2.71), (15.0, 2.71), (20.0, 2.71),
+        (25.0, 2.71), (30.0, 2.72), (35.0, 2.72), (40.0, 2.73), (45.0, 2.74),
+        (50.0, 2.75), (55.0, 2.76), (60.0, 2.77), (65.0, 2.79), (70.0, 2.81),
+        (75.0, 2.83), (80.0, 2.85), (85.0, 2.92), (90.0, 3.05), (91.0, 3.07),
+        (92.0, 3.10), (93.0, 3.15), (94.0, 3.22), (95.0, 3.30), (95.5, 3.32),
+        (96.0, 3.36), (96.5, 3.42), (97.0, 3.50), (97.5, 3.60), (98.0, 3.71),
+        (98.3, 3.80), (98.5, 3.86), (98.7, 3.94), (99.0, 4.06), (99.1, 4.14),
+        (99.2, 4.22), (99.3, 4.30), (99.4, 4.43), (99.5, 4.56), (99.6, 4.85),
+        (99.7, 5.15), (99.8, 5.52), (99.9, 5.89), (100.0, 5.89)
+    ]
+    if p <= 0.0: return mapping[0][1]
+    if p >= 100.0: return mapping[-1][1]
+
+    for i in range(len(mapping) - 1):
+        p1, r1 = mapping[i]
+        p2, r2 = mapping[i+1]
+        if p1 <= p <= p2:
+            if p2 == p1: return r1
+            return r1 + (r2 - r1) * ((p - p1) / (p2 - p1))
+    return 3.35
+
 def run_tests():
     """Simple assertion checks to guarantee math validity on startup."""
     assert calc_crl(96.6, 1560000) == 53040, "CRL calculation failed"
@@ -42,33 +66,43 @@ run_tests()
 # 2. TRACKING & UI CONFIGURATION
 # ==========================================
 
-# Everything inside this 'with' block will be tracked
 with streamlit_analytics.track():
     st.set_page_config(page_title="JEE Percentile ⇄ OBC Rank", layout="wide")
 
     st.title("JEE Percentile ⇄ OBC-NCL Rank Converter")
     st.markdown("Type in either box and hit Enter to instantly convert between Percentile and OBC-NCL Rank.")
 
-    # --- Sidebar Controls ---
-    st.sidebar.header("Configuration Parameters")
-    total_candidates = st.sidebar.number_input("Total Unique Candidates", min_value=100000, value=1560000, step=10000, key="total_cands")
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("CRL to OBC Ratios")
-    st.sidebar.markdown("*(Ratio = CRL / OBC Rank)*")
-    r_min = st.sidebar.number_input("Conservative Ratio (Min)", value=3.2, step=0.05, key="r_min_input")
-    r_med = st.sidebar.number_input("Median Ratio", value=3.35, step=0.05, key="r_med_input")
-    r_max = st.sidebar.number_input("Optimistic Ratio (Max)", value=3.5, step=0.05, key="r_max_input")
-
     # --- Session State Initialization ---
     if 'p_input' not in st.session_state: st.session_state.p_input = 96.6
     if 'o_input' not in st.session_state: st.session_state.o_input = 15833 
     if 'last_edited' not in st.session_state: st.session_state.last_edited = 'percentile'
+    
+    if 'r_med_input' not in st.session_state: 
+        base_init = get_auto_ratio(96.6)
+        st.session_state.r_med_input = float(round(base_init, 2))
+        st.session_state.r_min_input = float(round(base_init - 0.15, 2))
+        st.session_state.r_max_input = float(round(base_init + 0.15, 2))
+
+    # --- Sidebar Controls ---
+    st.sidebar.header("Configuration Parameters")
+    total_candidates = st.sidebar.number_input("Total Unique Candidates", min_value=100000, value=1560000, step=10000, key="total_cands")
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("CRL to OBC Ratios (Auto-Adjusting)")
+    st.sidebar.markdown("*(Ratio = CRL / OBC Rank)*")
+    r_min = st.sidebar.number_input("Conservative Ratio (Min)", step=0.05, key="r_min_input")
+    r_med = st.sidebar.number_input("Median Ratio", step=0.05, key="r_med_input")
+    r_max = st.sidebar.number_input("Optimistic Ratio (Max)", step=0.05, key="r_max_input")
 
     # --- Callbacks for Bidirectional Updates ---
     def update_from_percentile():
         st.session_state.last_edited = 'percentile'
         p = st.session_state.p_input
         if p is not None and 0.0 <= p <= 100.0:
+            base_ratio = get_auto_ratio(p)
+            st.session_state.r_med_input = float(round(base_ratio, 2))
+            st.session_state.r_min_input = float(round(base_ratio - 0.15, 2))
+            st.session_state.r_max_input = float(round(base_ratio + 0.15, 2))
+
             crl = calc_crl(p, st.session_state.total_cands)
             _, med, _ = crl_to_obc(crl, st.session_state.r_min_input, st.session_state.r_med_input, st.session_state.r_max_input)
             st.session_state.o_input = int(med)
@@ -77,8 +111,15 @@ with streamlit_analytics.track():
         st.session_state.last_edited = 'obc'
         o = st.session_state.o_input
         if o is not None and o > 0:
-            _, p_med, _ = obc_to_percentile(o, st.session_state.total_cands, st.session_state.r_min_input, st.session_state.r_med_input, st.session_state.r_max_input)
-            st.session_state.p_input = float(round(p_med, 4))
+            _, p_med_rough, _ = obc_to_percentile(o, st.session_state.total_cands, st.session_state.r_min_input, st.session_state.r_med_input, st.session_state.r_max_input)
+            
+            base_ratio = get_auto_ratio(p_med_rough)
+            st.session_state.r_med_input = float(round(base_ratio, 2))
+            st.session_state.r_min_input = float(round(base_ratio - 0.15, 2))
+            st.session_state.r_max_input = float(round(base_ratio + 0.15, 2))
+
+            _, p_med_final, _ = obc_to_percentile(o, st.session_state.total_cands, st.session_state.r_min_input, st.session_state.r_med_input, st.session_state.r_max_input)
+            st.session_state.p_input = float(round(p_med_final, 4))
 
     # ==========================================
     # 3. MAIN INTERFACE (Side-by-Side Panes)
@@ -153,7 +194,6 @@ with streamlit_analytics.track():
             st.markdown(f"- **Implied CRL Range** = `{o_val} * {r_min}` to `{o_val} * {r_max}`")
             st.markdown(f"- **Percentile** = `100 - (CRL * 100 / {total_candidates})`")
 
-
     # ==========================================
     # 5. NIT COLLEGE PREDICTION MODULE
     # ==========================================
@@ -225,4 +265,3 @@ with streamlit_analytics.track():
         st.info("No NIT CSE predicted for this rank based on the dataset.")
     else:
         st.table(matched_colleges)
-

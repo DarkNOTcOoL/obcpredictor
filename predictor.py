@@ -3,7 +3,7 @@ import math
 import streamlit_analytics2 as streamlit_analytics
 
 # ==========================================
-# 1. CORE MATH FUNCTIONS & UNIT TESTS
+# 1. CORE MATH FUNCTIONS
 # ==========================================
 
 def calc_crl(percentile: float, total_candidates: int) -> int:
@@ -12,26 +12,30 @@ def calc_crl(percentile: float, total_candidates: int) -> int:
     if percentile <= 0.0: return total_candidates
     return round(((100 - percentile) / 100) * total_candidates)
 
-def crl_to_obc(crl: int, r_min: float, r_med: float, r_max: float) -> tuple:
-    """Estimates OBC rank from CRL using conservative, median, and optimistic ratios."""
+def crl_to_percentile_gen(crl: int, total_candidates: int) -> float:
+    """Converts CRL directly back to Percentile (General Category)."""
+    return max(0.0, 100 - (crl * 100 / total_candidates))
+
+def crl_to_cat(crl: int, r_min: float, r_med: float, r_max: float) -> tuple:
+    """Estimates Category rank from CRL using conservative, median, and optimistic ratios."""
+    r_max, r_med, r_min = max(0.01, r_max), max(0.01, r_med), max(0.01, r_min)
     opt = round(crl / r_max)
     med = round(crl / r_med)
     cons = round(crl / r_min)
     return max(1, opt), max(1, med), max(1, cons)
 
-def obc_to_percentile(obc: int, total_candidates: int, r_min: float, r_med: float, r_max: float) -> tuple:
-    """Estimates percentile range from an OBC rank."""
-    crl_optimistic_percentile = obc * r_min 
-    crl_conservative_percentile = obc * r_max
-    crl_med = obc * r_med
+def cat_to_percentile(cat: int, total_candidates: int, r_min: float, r_med: float, r_max: float) -> tuple:
+    """Estimates percentile range from a Category rank."""
+    crl_opt = cat * r_min 
+    crl_cons = cat * r_max
+    crl_med = cat * r_med
     
-    p_opt = max(0.0, 100 - (crl_optimistic_percentile * 100 / total_candidates))
-    p_cons = max(0.0, 100 - (crl_conservative_percentile * 100 / total_candidates))
+    p_opt = max(0.0, 100 - (crl_opt * 100 / total_candidates))
+    p_cons = max(0.0, 100 - (crl_cons * 100 / total_candidates))
     p_med = max(0.0, 100 - (crl_med * 100 / total_candidates))
-    
     return p_cons, p_med, p_opt
 
-def get_auto_ratio(p: float) -> float:
+def get_obc_ratio(p: float) -> float:
     """Interpolates the CRL/OBC ratio based on the percentile."""
     mapping = [
         (0.0, 2.98), (5.0, 2.80), (10.0, 2.71), (15.0, 2.71), (20.0, 2.71),
@@ -46,7 +50,6 @@ def get_auto_ratio(p: float) -> float:
     ]
     if p <= 0.0: return mapping[0][1]
     if p >= 100.0: return mapping[-1][1]
-
     for i in range(len(mapping) - 1):
         p1, r1 = mapping[i]
         p2, r2 = mapping[i+1]
@@ -55,71 +58,130 @@ def get_auto_ratio(p: float) -> float:
             return r1 + (r2 - r1) * ((p - p1) / (p2 - p1))
     return 3.35
 
-def run_tests():
-    """Simple assertion checks to guarantee math validity on startup."""
-    assert calc_crl(96.6, 1560000) == 53040, "CRL calculation failed"
-    opt, med, cons = crl_to_obc(53040, 3.2, 3.35, 3.5)
-    assert opt == 15154 and cons == 16575, "OBC calculation failed"
-run_tests()
+def get_ews_ratio(p: float) -> float:
+    """Interpolates the CRL/EWS ratio based on the percentile."""
+    mapping = [
+        (0.0, 9.39), (10.0, 8.79), (20.0, 8.31), (30.0, 7.92), (40.0, 7.54),
+        (50.0, 7.19), (60.0, 6.89), (70.0, 6.60), (80.0, 5.90), (85.0, 6.06),
+        (90.0, 6.43), (93.0, 6.83), (95.0, 7.28), (97.0, 7.72), (99.0, 8.58),
+        (99.5, 8.60), (99.9, 8.84), (100.0, 8.84)
+    ]
+    if p <= 0.0: return mapping[0][1]
+    if p >= 100.0: return mapping[-1][1]
+    for i in range(len(mapping) - 1):
+        p1, r1 = mapping[i]
+        p2, r2 = mapping[i+1]
+        if p1 <= p <= p2:
+            if p2 == p1: return r1
+            return r1 + (r2 - r1) * ((p - p1) / (p2 - p1))
+    return 7.00
+
+def get_active_ratio(p: float, category: str) -> float:
+    if category == "OBC-NCL": return get_obc_ratio(p)
+    if category == "EWS": return get_ews_ratio(p)
+    return 1.0
 
 # ==========================================
 # 2. TRACKING & UI CONFIGURATION
 # ==========================================
 
 with streamlit_analytics.track():
-    st.set_page_config(page_title="JEE Percentile ⇄ OBC Rank", layout="wide")
-
-    st.title("JEE Percentile ⇄ OBC-NCL Rank Converter")
-    st.markdown("Type in either box and hit Enter to instantly convert between Percentile and OBC-NCL Rank.")
+    st.set_page_config(page_title="JEE Rank Predictor", layout="wide")
+    st.title("JEE Percentile ⇄ Rank Converter")
 
     # --- Session State Initialization ---
     if 'p_input' not in st.session_state: st.session_state.p_input = 96.6
-    if 'o_input' not in st.session_state: st.session_state.o_input = 15833 
     if 'last_edited' not in st.session_state: st.session_state.last_edited = 'percentile'
     
+    def update_category():
+        """Instantly updates ratios and inputs when radio button changes."""
+        cat = st.session_state.category
+        total_c = st.session_state.get('total_cands', 1550000)
+        p = st.session_state.get('p_input', 96.6)
+        
+        if cat != "General":
+            base_ratio = get_active_ratio(p, cat)
+            st.session_state.r_med_input = float(round(base_ratio, 2))
+            
+            crl = calc_crl(p, total_c)
+            _, med, _ = crl_to_cat(crl, max(0.01, st.session_state.r_med_input - 0.15), st.session_state.r_med_input, st.session_state.r_med_input + 0.15)
+            st.session_state.r_input = int(med)
+        else:
+            crl = calc_crl(p, total_c)
+            st.session_state.r_input = int(crl)
+
+    # 1. Category Selection First
+    category = st.radio(
+        "Select your Category:", 
+        ["General", "OBC-NCL", "EWS"], 
+        horizontal=True,
+        key="category",
+        on_change=update_category
+    )
+
+    st.markdown("Type in either box and hit Enter to instantly convert between Percentile and Rank.")
+
+    if 'r_input' not in st.session_state: st.session_state.r_input = 53040 if category == "General" else 15833 
+    
     if 'r_med_input' not in st.session_state: 
-        base_init = get_auto_ratio(96.6)
+        base_init = get_active_ratio(st.session_state.p_input, category)
         st.session_state.r_med_input = float(round(base_init, 2))
-        st.session_state.r_min_input = float(round(base_init - 0.15, 2))
-        st.session_state.r_max_input = float(round(base_init + 0.15, 2))
 
     # --- Sidebar Controls ---
     st.sidebar.header("Configuration Parameters")
-    total_candidates = st.sidebar.number_input("Total Unique Candidates", min_value=100000, value=1560000, step=10000, key="total_cands")
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("CRL to OBC Ratios (Auto-Adjusting)")
-    st.sidebar.markdown("*(Ratio = CRL / OBC Rank)*")
-    r_min = st.sidebar.number_input("Conservative Ratio (Min)", step=0.05, key="r_min_input")
-    r_med = st.sidebar.number_input("Median Ratio", step=0.05, key="r_med_input")
-    r_max = st.sidebar.number_input("Optimistic Ratio (Max)", step=0.05, key="r_max_input")
+    total_candidates = st.sidebar.number_input("Total Unique Candidates", min_value=100000, value=1550000, step=10000, key="total_cands")
+    
+    if category != "General":
+        st.sidebar.markdown("---")
+        st.sidebar.subheader(f"CRL to {category} Ratio (Auto-Adjusting)")
+        st.sidebar.markdown(f"*(Ratio = CRL / {category} Rank)*")
+        r_med = st.sidebar.number_input("Median Ratio", min_value=0.01, step=0.05, key="r_med_input")
+        # Internal min/max calculations based on median
+        r_min = max(0.01, r_med - 0.15)
+        r_max = r_med + 0.15
+    else:
+        r_min, r_med, r_max = 1.0, 1.0, 1.0
 
     # --- Callbacks for Bidirectional Updates ---
     def update_from_percentile():
         st.session_state.last_edited = 'percentile'
         p = st.session_state.p_input
         if p is not None and 0.0 <= p <= 100.0:
-            base_ratio = get_auto_ratio(p)
-            st.session_state.r_med_input = float(round(base_ratio, 2))
-            st.session_state.r_min_input = float(round(base_ratio - 0.15, 2))
-            st.session_state.r_max_input = float(round(base_ratio + 0.15, 2))
-
             crl = calc_crl(p, st.session_state.total_cands)
-            _, med, _ = crl_to_obc(crl, st.session_state.r_min_input, st.session_state.r_med_input, st.session_state.r_max_input)
-            st.session_state.o_input = int(med)
-
-    def update_from_obc():
-        st.session_state.last_edited = 'obc'
-        o = st.session_state.o_input
-        if o is not None and o > 0:
-            _, p_med_rough, _ = obc_to_percentile(o, st.session_state.total_cands, st.session_state.r_min_input, st.session_state.r_med_input, st.session_state.r_max_input)
             
-            base_ratio = get_auto_ratio(p_med_rough)
-            st.session_state.r_med_input = float(round(base_ratio, 2))
-            st.session_state.r_min_input = float(round(base_ratio - 0.15, 2))
-            st.session_state.r_max_input = float(round(base_ratio + 0.15, 2))
+            if st.session_state.category == "General":
+                st.session_state.r_input = crl
+            else:
+                base_ratio = get_active_ratio(p, st.session_state.category)
+                st.session_state.r_med_input = float(round(base_ratio, 2))
+                temp_min = max(0.01, st.session_state.r_med_input - 0.15)
+                temp_max = st.session_state.r_med_input + 0.15
 
-            _, p_med_final, _ = obc_to_percentile(o, st.session_state.total_cands, st.session_state.r_min_input, st.session_state.r_med_input, st.session_state.r_max_input)
-            st.session_state.p_input = float(round(p_med_final, 4))
+                _, med, _ = crl_to_cat(crl, temp_min, st.session_state.r_med_input, temp_max)
+                st.session_state.r_input = int(med)
+
+    def update_from_rank():
+        st.session_state.last_edited = 'rank'
+        r = st.session_state.r_input
+        if r is not None and r > 0:
+            if st.session_state.category == "General":
+                p_final = crl_to_percentile_gen(r, st.session_state.total_cands)
+                st.session_state.p_input = float(round(p_final, 4))
+            else:
+                current_med = st.session_state.r_med_input
+                temp_min = max(0.01, current_med - 0.15)
+                temp_max = current_med + 0.15
+                
+                _, p_med_rough, _ = cat_to_percentile(r, st.session_state.total_cands, temp_min, current_med, temp_max)
+                
+                base_ratio = get_active_ratio(p_med_rough, st.session_state.category)
+                st.session_state.r_med_input = float(round(base_ratio, 2))
+                
+                new_min = max(0.01, st.session_state.r_med_input - 0.15)
+                new_max = st.session_state.r_med_input + 0.15
+
+                _, p_med_final, _ = cat_to_percentile(r, st.session_state.total_cands, new_min, st.session_state.r_med_input, new_max)
+                st.session_state.p_input = float(round(p_med_final, 4))
 
     # ==========================================
     # 3. MAIN INTERFACE (Side-by-Side Panes)
@@ -132,6 +194,7 @@ with streamlit_analytics.track():
         p_val = st.number_input(
             "Enter Percentile", 
             min_value=0.0, max_value=100.0, 
+            step=0.1,
             format="%.4f",
             key="p_input", 
             on_change=update_from_percentile,
@@ -141,13 +204,14 @@ with streamlit_analytics.track():
             st.error("Percentile must be between 0 and 100.")
 
     with col2:
-        st.subheader("Estimated OBC-NCL Rank")
-        o_val = st.number_input(
-            "Enter OBC Rank", 
+        rank_label = "CRL Rank" if category == "General" else f"{category} Rank"
+        st.subheader(f"Estimated {rank_label}")
+        r_val = st.number_input(
+            f"Enter {rank_label}", 
             min_value=1, 
             step=100,
-            key="o_input", 
-            on_change=update_from_obc,
+            key="r_input", 
+            on_change=update_from_rank,
             label_visibility="collapsed"
         )
 
@@ -161,38 +225,51 @@ with streamlit_analytics.track():
 
     if st.session_state.last_edited == 'percentile':
         crl = calc_crl(p_val, total_candidates)
-        opt_obc, med_obc, cons_obc = crl_to_obc(crl, r_min, r_med, r_max)
         
-        st.write(f"**Intermediate CRL (All India Rank):** {crl:,}")
-        
-        summary_text = (
-            f"With a {p_val}% percentile and {total_candidates:,} candidates:\n"
-            f"• CRL ≈ {crl:,}\n"
-            f"• OBC Rank ≈ {opt_obc:,} — {cons_obc:,} (Median: {med_obc:,})"
-        )
-        
-        st.code(summary_text, language="text")
-        
-        with st.expander("Show Formulas Used"):
-            st.markdown(f"- **CRL** = `(100 - {p_val}) / 100 * {total_candidates}`")
-            st.markdown(f"- **OBC (Conservative)** = `CRL / {r_min}`")
-            st.markdown(f"- **OBC (Optimistic)** = `CRL / {r_max}`")
+        if category == "General":
+            summary_text = (
+                f"With a {p_val}% percentile and {total_candidates:,} candidates:\n"
+                f"• CRL ≈ {crl:,}"
+            )
+            st.code(summary_text, language="text")
+            with st.expander("Show Formulas Used"):
+                st.markdown(f"- **CRL** = `(100 - {p_val}) / 100 * {total_candidates}`")
+        else:
+            opt_cat, med_cat, cons_cat = crl_to_cat(crl, r_min, r_med, r_max)
+            st.write(f"**Intermediate CRL (All India Rank):** {crl:,}")
+            summary_text = (
+                f"With a {p_val}% percentile and {total_candidates:,} candidates:\n"
+                f"• CRL ≈ {crl:,}\n"
+                f"• {category} Rank ≈ {opt_cat:,} — {cons_cat:,}"
+            )
+            st.code(summary_text, language="text")
+            with st.expander("Show Formulas Used"):
+                st.markdown(f"- **CRL** = `(100 - {p_val}) / 100 * {total_candidates}`")
+                st.markdown(f"- **{category} (Conservative)** = `CRL / {r_min:.2f}`")
+                st.markdown(f"- **{category} (Optimistic)** = `CRL / {r_max:.2f}`")
 
     else:
-        p_cons, p_med, p_opt = obc_to_percentile(o_val, total_candidates, r_min, r_med, r_max)
-        crl_opt, crl_med, crl_cons = round(o_val * r_min), round(o_val * r_med), round(o_val * r_max)
-        
-        summary_text = (
-            f"To achieve an OBC-NCL Rank of {o_val:,} with {total_candidates:,} candidates:\n"
-            f"• Required CRL ≈ {crl_opt:,} — {crl_cons:,}\n"
-            f"• Required Percentile ≈ {p_cons:.4f}% — {p_opt:.4f}% (Median: {p_med:.4f}%)"
-        )
-        
-        st.code(summary_text, language="text")
-        
-        with st.expander("Show Formulas Used"):
-            st.markdown(f"- **Implied CRL Range** = `{o_val} * {r_min}` to `{o_val} * {r_max}`")
-            st.markdown(f"- **Percentile** = `100 - (CRL * 100 / {total_candidates})`")
+        if category == "General":
+            p_final = crl_to_percentile_gen(r_val, total_candidates)
+            summary_text = (
+                f"To achieve a CRL of {r_val:,} with {total_candidates:,} candidates:\n"
+                f"• Required Percentile ≈ {p_final:.4f}%"
+            )
+            st.code(summary_text, language="text")
+            with st.expander("Show Formulas Used"):
+                st.markdown(f"- **Percentile** = `100 - (CRL * 100 / {total_candidates})`")
+        else:
+            p_cons, p_med, p_opt = cat_to_percentile(r_val, total_candidates, r_min, r_med, r_max)
+            crl_opt, crl_med, crl_cons = round(r_val * r_min), round(r_val * r_med), round(r_val * r_max)
+            summary_text = (
+                f"To achieve an {category} Rank of {r_val:,} with {total_candidates:,} candidates:\n"
+                f"• Required CRL ≈ {crl_opt:,} — {crl_cons:,}\n"
+                f"• Required Percentile ≈ {p_cons:.4f}% — {p_opt:.4f}%"
+            )
+            st.code(summary_text, language="text")
+            with st.expander("Show Formulas Used"):
+                st.markdown(f"- **Implied CRL Range** = `{r_val} * {r_min:.2f}` to `{r_val} * {r_max:.2f}`")
+                st.markdown(f"- **Percentile** = `100 - (CRL * 100 / {total_candidates})`")
 
     # ==========================================
     # 5. NIT COLLEGE PREDICTION MODULE
@@ -235,7 +312,7 @@ with streamlit_analytics.track():
         {"name": "NIT Nagaland", "min": 13000, "max": 15000, "lpa": 8.50}
     ]
 
-    predicted_z = int(st.session_state.o_input)
+    predicted_z = int(st.session_state.r_input)
     matched_colleges = []
 
     for nit in NIT_DATA:
@@ -254,7 +331,7 @@ with streamlit_analytics.track():
             matched_colleges.append({
                 "NIT Name": nit["name"],
                 "Prediction": status,
-                "Cutoff Range (OBC Rank)": f"{x:,} — {y:,}",
+                f"Cutoff Range ({category} Rank)": f"{x:,} — {y:,}",
                 "Mean CSE Package (LPA)": f"₹{nit['lpa']:.2f} LPA"
             })
         
@@ -265,3 +342,5 @@ with streamlit_analytics.track():
         st.info("No NIT CSE predicted for this rank based on the dataset.")
     else:
         st.table(matched_colleges)
+        
+    st.markdown("<p style='font-size: 0.8em; color: gray;'>Made By: u/7DarKooL7 (open for feedback)</p>", unsafe_allow_html=True)

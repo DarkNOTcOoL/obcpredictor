@@ -18,11 +18,10 @@ you don't need to give your response sheet/reg no. or anything... just type in u
 
 Try it here: [ https://rankpredictor.streamlit.app/ ]
 
-GitHub Repo: [ https://github.com/DarkNOTcOoL/obcpredictor ]
-
 ---------------------------------------------------------------------------------------------------------------
 
 What’s New?
+
 Multi-Category Support: Full integration for General, OBC-NCL, and EWS ranks.
 
 Dynamic Ratios: No fixed multipliers. The app automatically adjusts the Category-to-CRL ratio based on where you sit in the percentile curve.
@@ -33,7 +32,10 @@ Bidirectional Conversion: Instantly flip between Percentile → Rank or Rank →
 
 Custom Parameters: You can manually tweak the total unique candidates or adjust Conservative/Optimistic ratios in the sidebar to stress-test your results.
 
+----------------------------------------------------------------------
+
 College & Placement Insights (only for OBC):
+
 NIT CSE Predictor: Instantly matches your predicted rank against cutoff data for NIT Computer Science branches.
 
 Placement Data: Displays the Mean CSE Package (LPA) for the colleges you qualify for.
@@ -42,4 +44,4 @@ Modern UI: Fast, responsive, and actually looks good (no AI-generated UI slop).
 
 -------------------------------------------------------------------------------------------
 
-Open to feedback and constructive criticism. Calculations are based on updated 2026 trends and candidate estimates.
+*Open to feedback and constructive criticism. Calculations are based on updated 2026 trends and candidate estimates.*

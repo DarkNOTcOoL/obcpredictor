@@ -1,5 +1,5 @@
 # obcpredictor
-[RELEASE] JEE Percentile ⇄ OBC/EWS Rank Predictor
+[RELEASE] JEE Percentile ⇄ OBC Rank Predictor
 
 [UPDATE 1] JEE Rank Predictor: Now with support for General, OBC, & EWS
 

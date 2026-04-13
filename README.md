@@ -1,5 +1,10 @@
 # obcpredictor
-[UPDATE] JEE Rank Predictor: Now with support for General, OBC, & EWS
+[RELEASE] JEE Percentile ⇄ OBC/EWS Rank Predictor
+[UPDATE 1] JEE Rank Predictor: Now with support for General, OBC, & EWS
+[UPDATE 2] Started to use numpy.interp() function instead of previous method
+
+
+
 I’ve completely overhauled the logic to support General and EWS categories alongside OBC-NCL.
 
 If you're tired of websites that give you a single random number out of thin air with no context, try this.

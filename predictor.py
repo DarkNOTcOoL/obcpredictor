@@ -343,4 +343,4 @@ with streamlit_analytics.track():
     else:
         st.table(matched_colleges)
         
-    st.markdown("<p style='font-size: 0.8em; color: gray;'>Made By: u/7DarKooL7 (open for feedback)</p>", unsafe_allow_html=True)
+    

@@ -1,5 +1,6 @@
 import streamlit as st
 import math
+import numpy as np
 import streamlit_analytics2 as streamlit_analytics
 
 # ==========================================
@@ -59,22 +60,12 @@ def get_obc_ratio(p: float) -> float:
     return 3.35
 
 def get_ews_ratio(p: float) -> float:
-    """Interpolates the CRL/EWS ratio based on the percentile."""
-    mapping = [
-        (0.0, 9.39), (10.0, 8.79), (20.0, 8.31), (30.0, 7.92), (40.0, 7.54),
-        (50.0, 7.19), (60.0, 6.89), (70.0, 6.60), (80.0, 5.90), (85.0, 6.06),
-        (90.0, 6.43), (93.0, 6.83), (95.0, 7.28), (97.0, 7.72), (99.0, 8.58),
-        (99.5, 8.60), (99.9, 8.84), (100.0, 8.84)
-    ]
-    if p <= 0.0: return mapping[0][1]
-    if p >= 100.0: return mapping[-1][1]
-    for i in range(len(mapping) - 1):
-        p1, r1 = mapping[i]
-        p2, r2 = mapping[i+1]
-        if p1 <= p <= p2:
-            if p2 == p1: return r1
-            return r1 + (r2 - r1) * ((p - p1) / (p2 - p1))
-    return 7.00
+    """High-precision interpolation for CRL/EWS ratio based on updated density."""
+    xp = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 85.0, 90.0, 91.0, 92.0, 93.0, 94.0, 95.0, 96.0, 96.5, 97.0, 97.5, 97.55, 98.0, 98.5, 99.0, 99.5, 99.9]
+    fp = [9.80, 9.80, 9.80, 9.75, 9.70, 9.60, 9.40, 9.10, 8.40, 7.90, 7.40, 7.15, 6.90, 6.50, 5.90, 5.50, 5.70, 5.85, 6.00, 6.30, 6.30, 6.70, 6.90, 7.40, 8.20, 10.40]
+    
+    # Interpolate the exact Ratio for this specific percentile
+    return float(np.interp(p, xp, fp))
 
 def get_active_ratio(p: float, category: str) -> float:
     if category == "OBC-NCL": return get_obc_ratio(p)

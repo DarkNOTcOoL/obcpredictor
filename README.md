@@ -1,9 +1,9 @@
 # obcpredictor
 ## [RELEASE] JEE Percentile ⇄ OBC Rank Predictor
 
-##[UPDATE 1] JEE Rank Predictor: Now with support for General, OBC, & EWS
+## [UPDATE 1] JEE Rank Predictor: Now with support for General, OBC, & EWS
 
-##[UPDATE 2] Started to use numpy.interp() function instead of previous method
+## [UPDATE 2] Started to use numpy.interp() function instead of previous method
 
 
 
@@ -20,8 +20,7 @@ Try it here: [ https://rankpredictor.streamlit.app/ ]
 
 ---------------------------------------------------------------------------------------------------------------
 
-##What’s New?
-
+## What’s New?
 Multi-Category Support: Full integration for General, OBC-NCL, and EWS ranks.
 
 Dynamic Ratios: No fixed multipliers. The app automatically adjusts the Category-to-CRL ratio based on where you sit in the percentile curve.
@@ -34,8 +33,7 @@ Custom Parameters: You can manually tweak the total unique candidates or adjust 
 
 ----------------------------------------------------------------------
 
-##College & Placement Insights (only for OBC):
-
+## College & Placement Insights (only for OBC):
 NIT CSE Predictor: Instantly matches your predicted rank against cutoff data for NIT Computer Science branches.
 
 Placement Data: Displays the Mean CSE Package (LPA) for the colleges you qualify for.

@@ -276,7 +276,7 @@ with streamlit_analytics.track():
     # ==========================================
 
     st.markdown("---")
-    st.subheader("Confirmed Colleges & Estimated Placements")
+    st.subheader("Confirmed Colleges & Estimated Placements *(works only for OBC)*")
 
     NIT_DATA = [
         {"name": "NIT Tiruchirappalli", "min": 250, "max": 400, "lpa": 30.10},

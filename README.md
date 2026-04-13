@@ -1,7 +1,10 @@
 # obcpredictor
 [RELEASE] JEE Percentile ⇄ OBC/EWS Rank Predictor
+
 [UPDATE 1] JEE Rank Predictor: Now with support for General, OBC, & EWS
+
 [UPDATE 2] Started to use numpy.interp() function instead of previous method
+
 
 
 

@@ -70,8 +70,9 @@ def get_active_ratio(p: float, category: str) -> float:
 # 2. TRACKING & UI CONFIGURATION
 # ==========================================
 
-with streamlit_analytics.track():
-    st.set_page_config(page_title="JEE Rank Predictor", layout="wide")
+st.set_page_config(page_title="JEE Rank Predictor", layout="wide")
+
+with streamlit_analytics.track(password=st.secrets["ANALYTICS_PASS"]):
     st.title("JEE Percentile ⇄ Rank Converter")
 
     # --- Session State Initialization ---
@@ -327,5 +328,3 @@ with streamlit_analytics.track():
         st.info("No NIT CSE predicted for this rank based on the dataset.")
     else:
         st.table(matched_colleges)
-        
-    

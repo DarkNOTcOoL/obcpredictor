@@ -3,3 +3,4 @@ streamlit-analytics2
 scipy
 numpy
 plotly
+pandas

@@ -2,3 +2,4 @@ streamlit
 streamlit-analytics2
 scipy
 numpy
+plotly

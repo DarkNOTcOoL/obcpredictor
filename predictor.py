@@ -1,5 +1,7 @@
-import streamlit as st
 import math
+import numpy as np
+from scipy.interpolate import PchipInterpolator
+import streamlit as st
 import streamlit_analytics2 as streamlit_analytics
 
 # ==========================================
@@ -35,46 +37,43 @@ def cat_to_percentile(cat: int, total_candidates: int, r_min: float, r_med: floa
     p_med = max(0.0, 100 - (crl_med * 100 / total_candidates))
     return p_cons, p_med, p_opt
 
+
+
+import numpy as np
+from scipy.interpolate import PchipInterpolator
+
 def get_obc_ratio(p: float) -> float:
-    """Interpolates the CRL/OBC ratio based on the percentile."""
-    mapping = [
-        (0.0, 2.98), (5.0, 2.80), (10.0, 2.71), (15.0, 2.71), (20.0, 2.71),
-        (25.0, 2.71), (30.0, 2.72), (35.0, 2.72), (40.0, 2.73), (45.0, 2.74),
-        (50.0, 2.75), (55.0, 2.76), (60.0, 2.77), (65.0, 2.79), (70.0, 2.81),
-        (75.0, 2.83), (80.0, 2.85), (85.0, 2.92), (90.0, 3.05), (91.0, 3.07),
-        (92.0, 3.10), (93.0, 3.15), (94.0, 3.22), (95.0, 3.30), (95.5, 3.32),
-        (96.0, 3.36), (96.5, 3.42), (97.0, 3.50), (97.5, 3.60), (98.0, 3.71),
-        (98.3, 3.80), (98.5, 3.86), (98.7, 3.94), (99.0, 4.06), (99.1, 4.14),
-        (99.2, 4.22), (99.3, 4.30), (99.4, 4.43), (99.5, 4.56), (99.6, 4.85),
-        (99.7, 5.15), (99.8, 5.52), (99.9, 5.89), (100.0, 5.89)
+    # xp: Percentiles
+    # fp: Corresponding CRL/OBC Ratios
+    xp = [
+        0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 75.0, 80.0, 
+        85.0, 90.0, 91.0, 92.0, 93.0, 94.0, 95.0, 96.0, 96.666, 
+        97.0, 97.5, 98.0, 99.0, 99.5, 99.9, 100.0
     ]
-    if p <= 0.0: return mapping[0][1]
-    if p >= 100.0: return mapping[-1][1]
-    for i in range(len(mapping) - 1):
-        p1, r1 = mapping[i]
-        p2, r2 = mapping[i+1]
-        if p1 <= p <= p2:
-            if p2 == p1: return r1
-            return r1 + (r2 - r1) * ((p - p1) / (p2 - p1))
-    return 3.35
+    fp = [
+        2.07, 2.08, 2.09, 2.11, 2.13, 2.16, 2.22, 2.31, 2.38, 2.47, 
+        2.58, 2.75, 2.80, 2.86, 2.93, 3.01, 3.10, 3.22, 3.35, 
+        3.52, 3.75, 4.05, 4.60, 5.15, 5.85, 6.00
+    ]
+
+    interpolator = PchipInterpolator(xp, fp)
+    
+    # Clamp the input percentile between 0 and 100
+    p = max(0.0, min(100.0, p))
+    
+    return float(interpolator(p))
 
 def get_ews_ratio(p: float) -> float:
-    """Interpolates the CRL/EWS ratio based on the percentile."""
-    mapping = [
-        (0.0, 9.39), (10.0, 8.79), (20.0, 8.31), (30.0, 7.92), (40.0, 7.54),
-        (50.0, 7.19), (60.0, 6.89), (70.0, 6.60), (80.0, 5.90), (85.0, 6.06),
-        (90.0, 6.43), (93.0, 6.83), (95.0, 7.28), (97.0, 7.72), (99.0, 8.58),
-        (99.5, 8.60), (99.9, 8.84), (100.0, 8.84)
+    """High-precision interpolation for CRL/EWS ratio based on updated density."""
+    xp = [
+        0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 85.0, 90.0, 91.0, 92.0, 93.0, 
+        94.0, 95.0, 96.0, 96.5, 97.0, 97.5, 97.55, 98.0, 98.5, 99.0, 99.5, 99.9
     ]
-    if p <= 0.0: return mapping[0][1]
-    if p >= 100.0: return mapping[-1][1]
-    for i in range(len(mapping) - 1):
-        p1, r1 = mapping[i]
-        p2, r2 = mapping[i+1]
-        if p1 <= p <= p2:
-            if p2 == p1: return r1
-            return r1 + (r2 - r1) * ((p - p1) / (p2 - p1))
-    return 7.00
+    fp = [
+        9.80, 9.80, 9.80, 9.75, 9.70, 9.60, 9.40, 9.10, 8.40, 7.90, 7.40, 7.15, 6.90, 6.50, 
+        5.90, 5.50, 5.70, 5.85, 6.00, 6.30, 6.30, 6.70, 6.90, 7.40, 8.20, 10.40
+    ]
+    return float(np.interp(p, xp, fp))
 
 def get_active_ratio(p: float, category: str) -> float:
     if category == "OBC-NCL": return get_obc_ratio(p)
@@ -136,7 +135,6 @@ with streamlit_analytics.track():
         st.sidebar.subheader(f"CRL to {category} Ratio (Auto-Adjusting)")
         st.sidebar.markdown(f"*(Ratio = CRL / {category} Rank)*")
         r_med = st.sidebar.number_input("Median Ratio", min_value=0.01, step=0.05, key="r_med_input")
-        # Internal min/max calculations based on median
         r_min = max(0.01, r_med - 0.15)
         r_max = r_med + 0.15
     else:
@@ -276,7 +274,7 @@ with streamlit_analytics.track():
     # ==========================================
 
     st.markdown("---")
-    st.subheader("Confirmed Colleges & Estimated Placements")
+    st.subheader("Confirmed Colleges & Estimated Placements *(works only for OBC)*")
 
     NIT_DATA = [
         {"name": "NIT Tiruchirappalli", "min": 250, "max": 400, "lpa": 30.10},
@@ -342,5 +340,3 @@ with streamlit_analytics.track():
         st.info("No NIT CSE predicted for this rank based on the dataset.")
     else:
         st.table(matched_colleges)
-        
-    

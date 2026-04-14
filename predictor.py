@@ -3,7 +3,7 @@ import streamlit as st
 import math
 
 import numpy as np
-from scipy.interpolate import PchipInterpolator
+
 
 import streamlit_analytics2 as streamlit_analytics
 

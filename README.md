@@ -3,13 +3,6 @@
 
 ## [UPDATE 1] JEE Rank Predictor: Now with support for General, OBC, & EWS
 
-## [UPDATE 2] Started to use numpy.interp() function instead of previous method
-
-## [UPDATE 3] Added graphs for visual representation (taaki logo ko na lage hawa bazi mein prediction chal rhi hao)
-
-
-
-
 I’ve completely overhauled the logic to support General and EWS categories alongside OBC-NCL.
 
 If you're tired of websites that give you a single random number out of thin air with no context, try this.
@@ -41,6 +34,10 @@ NIT CSE Predictor: Instantly matches your predicted rank against cutoff data for
 Placement Data: Displays the Mean CSE Package (LPA) for the colleges you qualify for.
 
 Modern UI: Fast, responsive, and actually looks good (no AI-generated UI slop).
+
+## [UPDATE 2] Started to use numpy.interp() function instead of previous method
+
+## [UPDATE 3] Added graphs for visual representation (taaki logo ko na lage hawa bazi mein prediction chal rhi hao
 
 -------------------------------------------------------------------------------------------
 

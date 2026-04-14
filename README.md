@@ -5,6 +5,8 @@
 
 ## [UPDATE 2] Started to use numpy.interp() function instead of previous method
 
+## [UPDATE 3] Added graphs for visual representation (taaki logo ko na lage hawa bazi mein prediction chal rhi hao)
+
 
 
 

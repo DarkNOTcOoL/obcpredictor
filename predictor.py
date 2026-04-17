@@ -2,24 +2,7 @@ import math
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 import streamlit as st
-import streamlit.components.v1 as components  # Replaced SA2 with this
 import plotly.graph_objects as go
-
-# ==========================================
-# 0. ANALYTICS INJECTION (UMAMI)
-# ==========================================
-
-def inject_umami():
-    """Injects Umami tracking script into the Streamlit app."""
-    # PASTE YOUR UNIQUE ID FROM UMAMI CLOUD HERE
-    umami_id = "YOUR-WEBSITE-ID-FROM-UMAMI" 
-    
-    umami_script = f"""
-    <script defer src="https://cloud.umami.is/script.js" 
-            data-website-id="6f5c34a6-27e7-45de-9202-c24872d5c396"></script>
-    """
-    # height=0 keeps it invisible in the UI
-    components.html(umami_script, height=0)
 
 # ==========================================
 # 1. CORE MATH FUNCTIONS
@@ -93,19 +76,23 @@ def get_active_ratio(p: float, category: str) -> float:
 # 2. GRAPH VISUALIZATION MODULE
 # ==========================================
 
+# Removed @st.cache_data so the "You are here" marker updates instantly!
 def render_graphs(total_cands: int, user_p: float, user_cat: str):
-    """Generates high-contrast graphs highlighting ratio shifts."""
+    """Generates high-contrast graphs highlighting ratio shifts and the user's exact position."""
     st.markdown("---")
     st.markdown("### Under the Hood: The Ratio & Rank Dynamics")
     
+    # 1. Generate high-resolution data points
     p_vals = np.linspace(0.0, 100.0, 1000)
     obc_r = [get_obc_ratio(p) for p in p_vals]
     ews_r = [get_ews_ratio(p) for p in p_vals]
     
+    # --- GRAPH 1: RATIO ANALYSIS (Linear-Linear) ---
     fig1 = go.Figure()
     fig1.add_trace(go.Scatter(x=p_vals, y=obc_r, mode='lines', name='OBC-NCL Ratio', line=dict(color='#FFA500', width=3)))
     fig1.add_trace(go.Scatter(x=p_vals, y=ews_r, mode='lines', name='EWS Ratio', line=dict(color='#00BFFF', width=3)))
     
+    # Add "You are here" dot for Graph 1
     if user_cat in ["OBC-NCL", "EWS"]:
         user_ratio = get_active_ratio(user_p, user_cat)
         dot_color = '#FFA500' if user_cat == "OBC-NCL" else '#00BFFF'
@@ -116,20 +103,22 @@ def render_graphs(total_cands: int, user_p: float, user_cat: str):
             name='Your Position',
             marker=dict(color='white', size=14, line=dict(color=dot_color, width=3)),
             text=[f"<b>{user_p:.2f}%ile</b><br>Ratio: {user_ratio:.2f}"],
-            textposition="top left" if user_p > 85 else "top right",
+            textposition="top left" if user_p > 85 else "top right", # Prevents text from clipping off-screen
             showlegend=False
         ))
 
     fig1.update_layout(
-        title="<b>Direct Ratio Curves</b>",
+        title="<b>Direct Ratio Curves</b> (CRL / Category Rank)",
         xaxis_title="Percentile (%)",
         yaxis_title="Ratio Value",
         hovermode="x unified",
         template="plotly_dark",
         margin=dict(l=0, r=0, t=50, b=0)
     )
-    st.plotly_chart(fig1, use_container_width=True)
+    st.plotly_chart(fig1, width="stretch")
 
+    # --- GRAPH 2: THE "DRAMATIC" RANK MAPPING (Log-Linear) ---
+    # Adjusted to start at 50%ile so lower-scoring users can still see their dot on the curve
     p_vals_zoom = np.linspace(50.0, 99.99, 1000) 
     crl_vals = [calc_crl(p, total_cands) for p in p_vals_zoom]
     obc_ranks = [crl / get_obc_ratio(p) for crl, p in zip(crl_vals, p_vals_zoom)]
@@ -139,6 +128,7 @@ def render_graphs(total_cands: int, user_p: float, user_cat: str):
     fig2.add_trace(go.Scatter(x=crl_vals, y=obc_ranks, mode='lines', name='OBC-NCL Rank', line=dict(color='#FFA500', width=3)))
     fig2.add_trace(go.Scatter(x=crl_vals, y=ews_ranks, mode='lines', name='EWS Rank', line=dict(color='#00BFFF', width=3)))
     
+    # Add "You are here" dot for Graph 2
     user_crl = calc_crl(user_p, total_cands)
     
     if user_cat in ["OBC-NCL", "EWS"] and user_p >= 50.0:
@@ -156,24 +146,31 @@ def render_graphs(total_cands: int, user_p: float, user_cat: str):
         ))
 
     fig2.update_layout(
-        title="<b>Semi-Log Rank Mapping</b>",
+        title="<b>Semi-Log Rank Mapping</b> (The 'Visible' Ratio Shift)",
         xaxis_title="Common Rank List (CRL) → Log Scale",
-        yaxis_title="Predicted Category Rank",
-        xaxis_type="log",
-        yaxis_type="linear",
+        yaxis_title="Predicted Category Rank → Linear Scale",
+        xaxis_type="log",    # CRL stays Logarithmic
+        yaxis_type="linear", # Category Rank stays Linear
         hovermode="x unified",
         template="plotly_dark",
         margin=dict(l=0, r=0, t=50, b=0),
         xaxis=dict(rangeslider=dict(visible=True))
     )
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 # ==========================================
-# 3. PAGE CONFIG & UI SETUP
+# 3. TRACKING & UI CONFIGURATION
 # ==========================================
 
 st.set_page_config(page_title="JEE Rank Predictor", layout="wide")
-inject_umami() # Call Umami here
+
+# Umami Analytics Integration
+st.components.v1.html(
+    """
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="6f5c34a6-27e7-45de-9202-c24872d5c396"></script>
+    """,
+    height=0,
+)
 
 st.title("JEE Percentile ⇄ Rank Converter")
 
@@ -182,6 +179,7 @@ if 'p_input' not in st.session_state: st.session_state.p_input = 96.6
 if 'last_edited' not in st.session_state: st.session_state.last_edited = 'percentile'
 
 def update_category():
+    """Instantly updates ratios and inputs when radio button changes."""
     cat = st.session_state.category
     total_c = st.session_state.get('total_cands', 1550000)
     p = st.session_state.get('p_input', 96.6)
@@ -189,6 +187,7 @@ def update_category():
     if cat != "General":
         base_ratio = get_active_ratio(p, cat)
         st.session_state.r_med_input = float(round(base_ratio, 2))
+        
         crl = calc_crl(p, total_c)
         _, med, _ = crl_to_cat(crl, max(0.01, st.session_state.r_med_input - 0.15), st.session_state.r_med_input, st.session_state.r_med_input + 0.15)
         st.session_state.r_input = int(med)
@@ -196,6 +195,7 @@ def update_category():
         crl = calc_crl(p, total_c)
         st.session_state.r_input = int(crl)
 
+# 1. Category Selection First
 category = st.radio(
     "Select your Category:", 
     ["General", "OBC-NCL", "EWS"], 
@@ -207,6 +207,7 @@ category = st.radio(
 st.markdown("Type in either box and hit Enter to instantly convert between Percentile and Rank.")
 
 if 'r_input' not in st.session_state: st.session_state.r_input = 53040 if category == "General" else 15833 
+
 if 'r_med_input' not in st.session_state: 
     base_init = get_active_ratio(st.session_state.p_input, category)
     st.session_state.r_med_input = float(round(base_init, 2))
@@ -218,24 +219,29 @@ total_candidates = st.sidebar.number_input("Total Unique Candidates", min_value=
 if category != "General":
     st.sidebar.markdown("---")
     st.sidebar.subheader(f"CRL to {category} Ratio (Auto-Adjusting)")
+    st.sidebar.markdown(f"*(Ratio = CRL / {category} Rank)*")
     r_med = st.sidebar.number_input("Median Ratio", min_value=0.01, step=0.05, key="r_med_input")
     r_min = max(0.01, r_med - 0.15)
     r_max = r_med + 0.15
 else:
     r_min, r_med, r_max = 1.0, 1.0, 1.0
 
-# --- Callbacks ---
+# --- Callbacks for Bidirectional Updates ---
 def update_from_percentile():
     st.session_state.last_edited = 'percentile'
     p = st.session_state.p_input
     if p is not None and 0.0 <= p <= 100.0:
         crl = calc_crl(p, st.session_state.total_cands)
+        
         if st.session_state.category == "General":
             st.session_state.r_input = crl
         else:
             base_ratio = get_active_ratio(p, st.session_state.category)
             st.session_state.r_med_input = float(round(base_ratio, 2))
-            _, med, _ = crl_to_cat(crl, max(0.01, st.session_state.r_med_input - 0.15), st.session_state.r_med_input, st.session_state.r_med_input + 0.15)
+            temp_min = max(0.01, st.session_state.r_med_input - 0.15)
+            temp_max = st.session_state.r_med_input + 0.15
+
+            _, med, _ = crl_to_cat(crl, temp_min, st.session_state.r_med_input, temp_max)
             st.session_state.r_input = int(med)
 
 def update_from_rank():
@@ -247,52 +253,118 @@ def update_from_rank():
             st.session_state.p_input = float(round(p_final, 4))
         else:
             current_med = st.session_state.r_med_input
-            _, p_med_rough, _ = cat_to_percentile(r, st.session_state.total_cands, max(0.01, current_med - 0.15), current_med, current_med + 0.15)
+            temp_min = max(0.01, current_med - 0.15)
+            temp_max = current_med + 0.15
+            
+            _, p_med_rough, _ = cat_to_percentile(r, st.session_state.total_cands, temp_min, current_med, temp_max)
+            
             base_ratio = get_active_ratio(p_med_rough, st.session_state.category)
             st.session_state.r_med_input = float(round(base_ratio, 2))
-            _, p_med_final, _ = cat_to_percentile(r, st.session_state.total_cands, max(0.01, st.session_state.r_med_input - 0.15), st.session_state.r_med_input, st.session_state.r_med_input + 0.15)
+            
+            new_min = max(0.01, st.session_state.r_med_input - 0.15)
+            new_max = st.session_state.r_med_input + 0.15
+
+            _, p_med_final, _ = cat_to_percentile(r, st.session_state.total_cands, new_min, st.session_state.r_med_input, new_max)
             st.session_state.p_input = float(round(p_med_final, 4))
 
 # ==========================================
-# 4. MAIN INTERFACE
+# 4. MAIN INTERFACE (Side-by-Side Panes)
 # ==========================================
 
 col1, col2 = st.columns(2)
+
 with col1:
     st.subheader("Percentile (%)")
-    p_val = st.number_input("Enter Percentile", min_value=0.0, max_value=100.0, step=0.1, format="%.4f", key="p_input", on_change=update_from_percentile, label_visibility="collapsed")
+    p_val = st.number_input(
+        "Enter Percentile", 
+        min_value=0.0, max_value=100.0, 
+        step=0.1,
+        format="%.4f",
+        key="p_input", 
+        on_change=update_from_percentile,
+        label_visibility="collapsed"
+    )
+    if not (0.0 <= p_val <= 100.0):
+        st.error("Percentile must be between 0 and 100.")
 
 with col2:
     rank_label = "CRL Rank" if category == "General" else f"{category} Rank"
     st.subheader(f"Estimated {rank_label}")
-    r_val = st.number_input(f"Enter {rank_label}", min_value=1, step=100, key="r_input", on_change=update_from_rank, label_visibility="collapsed")
+    r_val = st.number_input(
+        f"Enter {rank_label}", 
+        min_value=1, 
+        step=100,
+        key="r_input", 
+        on_change=update_from_rank,
+        label_visibility="collapsed"
+    )
 
 st.markdown("---")
+
+# ==========================================
+# 5. RESULTS & FORMULAS DISPLAY
+# ==========================================
+
 st.subheader("Detailed Breakdown")
 
 if st.session_state.last_edited == 'percentile':
     crl = calc_crl(p_val, total_candidates)
+    
     if category == "General":
-        st.code(f"• CRL ≈ {crl:,}", language="text")
+        summary_text = (
+            f"With a {p_val}% percentile and {total_candidates:,} candidates:\n"
+            f"• CRL ≈ {crl:,}"
+        )
+        st.code(summary_text, language="text")
+        with st.expander("Look under the hood"):
+            st.markdown(f"- **CRL** = `(100 - {p_val}) / 100 * {total_candidates}`")
+            render_graphs(total_candidates, p_val, category)
     else:
         opt_cat, med_cat, cons_cat = crl_to_cat(crl, r_min, r_med, r_max)
-        st.code(f"• CRL ≈ {crl:,}\n• {category} Rank ≈ {opt_cat:,} — {cons_cat:,}", language="text")
-    render_graphs(total_candidates, p_val, category)
+        st.write(f"**Intermediate CRL (All India Rank):** {crl:,}")
+        summary_text = (
+            f"With a {p_val}% percentile and {total_candidates:,} candidates:\n"
+            f"• CRL ≈ {crl:,}\n"
+            f"• {category} Rank ≈ {opt_cat:,} — {cons_cat:,}"
+        )
+        st.code(summary_text, language="text")
+        with st.expander("Look under the hood"):
+            st.markdown(f"- **CRL** = `(100 - {p_val}) / 100 * {total_candidates}`")
+            st.markdown(f"- **{category} (Conservative)** = `CRL / {r_min:.2f}`")
+            st.markdown(f"- **{category} (Optimistic)** = `CRL / {r_max:.2f}`")
+            render_graphs(total_candidates, p_val, category)
+
 else:
     if category == "General":
         p_final = crl_to_percentile_gen(r_val, total_candidates)
-        st.code(f"• Required Percentile ≈ {p_final:.4f}%", language="text")
+        summary_text = (
+            f"To achieve a CRL of {r_val:,} with {total_candidates:,} candidates:\n"
+            f"• Required Percentile ≈ {p_final:.4f}%"
+        )
+        st.code(summary_text, language="text")
+        with st.expander("Look under the hood"):
+            st.markdown(f"- **Percentile** = `100 - (CRL * 100 / {total_candidates})`")
+            render_graphs(total_candidates, p_val, category)
     else:
         p_cons, p_med, p_opt = cat_to_percentile(r_val, total_candidates, r_min, r_med, r_max)
-        st.code(f"• Required Percentile ≈ {p_cons:.4f}% — {p_opt:.4f}%", language="text")
-    render_graphs(total_candidates, st.session_state.p_input, category)
+        crl_opt, crl_med, crl_cons = round(r_val * r_min), round(r_val * r_med), round(r_val * r_max)
+        summary_text = (
+            f"To achieve an {category} Rank of {r_val:,} with {total_candidates:,} candidates:\n"
+            f"• Required CRL ≈ {crl_opt:,} — {crl_cons:,}\n"
+            f"• Required Percentile ≈ {p_cons:.4f}% — {p_opt:.4f}%"
+        )
+        st.code(summary_text, language="text")
+        with st.expander("Look under the hood"):
+            st.markdown(f"- **Implied CRL Range** = `{r_val} * {r_min:.2f}` to `{r_val} * {r_max:.2f}`")
+            st.markdown(f"- **Percentile** = `100 - (CRL * 100 / {total_candidates})`")
+            render_graphs(total_candidates, p_val, category)
 
 # ==========================================
-# 5. NIT COLLEGE PREDICTION
+# 6. NIT COLLEGE PREDICTION MODULE
 # ==========================================
 
 st.markdown("---")
-st.subheader("Confirmed Colleges & Estimated Placements")
+st.subheader("Confirmed Colleges & Estimated Placements *(accurate only for OBC)*")
 
 NIT_DATA = [
     {"name": "NIT Tiruchirappalli", "min": 250, "max": 400, "lpa": 30.10},
@@ -332,18 +404,29 @@ predicted_z = int(st.session_state.r_input)
 matched_colleges = []
 
 for nit in NIT_DATA:
-    x, y = nit["min"], nit["max"]
-    status = "Safe" if predicted_z < x else ("Very Likely" if x <= predicted_z <= y else ("Possible" if y < predicted_z <= (y + 500) else None))
+    x = nit["min"]
+    y = nit["max"]
+    status = None
+    
+    if predicted_z < x:
+        status = "Safe"
+    elif x <= predicted_z <= y:
+        status = "Very Likely"
+    elif y < predicted_z <= (y + 500):
+        status = "Possible"
+        
     if status:
         matched_colleges.append({
             "NIT Name": nit["name"],
             "Prediction": status,
-            f"Cutoff Range ({category})": f"{x:,} — {y:,}",
-            "Mean CSE Package": f"₹{nit['lpa']:.2f} LPA"
+            f"Cutoff Range ({category} Rank)": f"{x:,} — {y:,}",
+            "Mean CSE Package (LPA)": f"₹{nit['lpa']:.2f} LPA"
         })
-    if len(matched_colleges) == 10: break # Show more than 3 now
+    
+    if len(matched_colleges) == 3:
+        break
 
 if not matched_colleges:
-    st.info("No NIT CSE predicted for this rank.")
+    st.info("No NIT CSE predicted for this rank based on the dataset.")
 else:
     st.table(matched_colleges)

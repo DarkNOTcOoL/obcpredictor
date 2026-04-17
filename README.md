@@ -40,5 +40,12 @@ Modern UI: Fast, responsive, and actually looks good (no AI-generated UI slop).
 ## [UPDATE 3] Added graphs for visual representation (taaki logo ko na lage hawa bazi mein prediction chal rhi hao
 
 -------------------------------------------------------------------------------------------
+## flexing my stats:
+<img width="1568" height="708" alt="Screenshot 2026-04-13 224923" src="https://github.com/user-attachments/assets/523648e7-b095-43e1-8386-8b1c6a317f3f" />
+<img width="1723" height="711" alt="Screenshot 2026-04-17 193800" src="https://github.com/user-attachments/assets/8f24972e-61d0-4229-a2ff-1feab35d6a9e" />
+<img width="519" height="337" alt="Screenshot 2026-04-17 190625" src="https://github.com/user-attachments/assets/1fe4e36b-e0c1-46fd-98c4-45ae6ab6286f" />
+managed to hit 4.52k+ page views, 30.11+ script runs and 768+ unique visitors in less than 10 days 
+
+-------------------------------------------------------------------------------------------
 
 *Open to feedback and constructive criticism. Calculations are based on updated 2026 trends and candidate estimates.*
